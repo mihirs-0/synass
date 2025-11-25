@@ -4,17 +4,48 @@ This repository contains the experimental code and benchmark for the paper: **"A
 
 ## Abstract
 
-Recent work reports directional asymmetries in Large Language Models—for example, models trained on $A \rightarrow B$ often fail to answer $B \rightarrow A$—suggesting an apparent "arrow of time" in learned associations. At the same time, theoretical analyses of Transformer architectures indicate that the underlying function class is, in principle, invariant to sequence reversal, implying that the asymmetry may arise from training dynamics or optimization rather than representational limits. However, existing empirical studies rely on natural language, where semantic priors, linguistic conventions, and corpus statistics make it difficult to disentangle architectural effects from data effects.
+Transformers are theoretically reversal-invariant: their function class does not prefer left-to-right over right-to-left mappings. Yet empirical studies on natural language repeatedly report a "reversal curse," and recent work on temporal asymmetry in LLMs suggests that real-world corpora carry their own arrow of time. This leaves an unresolved question: **do directional failures stem from linguistic statistics, or from the architecture itself?**
 
-In this work, we introduce a controlled synthetic benchmark designed to measure directional training efficiency in the absence of such confounds. We construct datasets of random string mappings with tunable branching factor $K$, allowing the information-theoretic loss floors for deterministic forward and probabilistic inverse tasks to be computed exactly. Using **Excess Loss** (the deviation from these floors) as a normalized metric, we compare Transformer training dynamics (scratch, pre-trained, and low-rank adaptation) against a non-causal MLP baseline.
+We cut through this ambiguity with a fully synthetic, entropy-controlled benchmark designed as a clean-room stress test for directional learning. Using random string mappings with tunable branching factor $K$, we construct forward tasks with zero conditional entropy and inverse tasks with analytically determined entropy floors. **Excess loss** above these floors reveals that even scratch-trained GPT-2 models exhibit a strong, reproducible directional optimization gap (e.g., 1.16 nats at $K=5$), far larger than that of an MLP trained on the same data. Pre-trained initializations shift optimization behavior but do not eliminate this gap, while LoRA encounters a sharp capacity wall on high-entropy inverse mappings.
+
+Together, these results isolate a minimal, semantics-free signature of **directional friction intrinsic to causal Transformer training**—one that persists even when linguistic priors, token frequencies, and corpus-level temporal asymmetries are removed. Our benchmark provides a controlled instrument for dissecting directional biases in modern sequence models and motivates deeper mechanistic study of why inversion remains fundamentally harder for Transformers.
+
+## Introduction
+
+While Transformer-based Large Language Models (LLMs) excel at sequence modeling, they exhibit a fundamental directional asymmetry. Recent studies report that models trained on causal statements ($A \to B$) often fail to infer the diagnostic inverse ($B \to A$), a phenomenon termed the **"reversal curse"**. This raises a critical question: is this asymmetry an artifact of the training data, or an intrinsic inductive bias of the architecture itself?
+
+Current analyses relying on natural language (e.g., "$A$ is the parent of $B$") are inherently confounded by three factors:
+
+1. **Semantic Priors**: Causal relationships often appear more frequently than diagnostic ones in training corpora.
+2. **Linguistic Structure**: Syntax and grammar impose directional dependencies (e.g., Subject-Verb-Object) that favor forward prediction.
+3. **Token Statistics**: Entity frequencies and co-occurrence statistics are rarely symmetric.
+
+Consequently, it is difficult to disentangle whether the Reversal Curse arises from data distribution or from the autoregressive factorization mechanism.
+
+### The Arrow of Complexity
+
+This directional puzzle is further complicated by inherent differences in computational complexity. Forward generation often resembles a deterministic collapse of state space (analogous to multiplication), whereas inverse inference requires expanding state space to recover multiple potential inputs (analogous to factorization). In natural language, these entropic differences are inextricably linked to semantics. To isolate the architectural contribution to the Reversal Curse, we require a setting where this forward-inverse complexity asymmetry is explicitly tunable.
+
+### Goal: A Synthetic "Clean Room"
+
+We introduce a controlled benchmark to measure **directional training efficiency** in the absence of linguistic or statistical confounds. We construct a dataset of random string mappings where the topology is strictly controlled by a branching factor $K$:
+
+- **Forward ($A \to B$)**: Deterministic mapping ($H=0$), mimicking low-entropy causal processes.
+- **Backward ($B \to A$)**: Probabilistic one-to-many mapping ($H=\ln K$), mimicking high-entropy inverse problems.
+
+This design creates a mathematically precise analogue of the complexity asymmetry described in prior work, stripped of all semantic priors.
+
+### Approach
+
+Within this framework, we benchmark the optimization dynamics of Causal Transformers (trained from scratch and pre-trained) against non-causal Multilayer Perceptrons (MLPs) and Low-Rank Adaptation (LoRA) methods. Crucially, because the information-theoretic floor of each task is known exactly, we report **Excess Loss**—the divergence of the model from the theoretical minimum. This metric allows us to rigorously decouple the inherent thermodynamic difficulty of the inverse task from the structural inefficiencies of the architecture.
 
 ## Key Findings
 
 Across 40,000-pair datasets, we observe:
 
-1. **Transformers trained from scratch** exhibit a consistent directional efficiency gap (e.g., $\approx 1.16$ nats at $K=5$), substantially larger than the gap observed in MLPs ($\approx 0.22$ nats).
-2. **Pre-trained initializations** show higher excess loss than random initialization on this synthetic mapping task.
-3. **Low-rank adaptation (LoRA)** fails to converge on high-entropy inverse mappings at this scale.
+1. **Transformers trained from scratch** exhibit a consistent directional optimization gap (e.g., $\approx 1.16$ nats at $K=5$), substantially larger than the gap observed in MLPs ($\approx 0.22$ nats).
+2. **Pre-trained initializations** shift optimization behavior but do not eliminate the directional gap.
+3. **Low-rank adaptation (LoRA)** encounters a sharp capacity wall on high-entropy inverse mappings, failing to converge at this scale.
 
 ## Repository Structure
 
@@ -239,20 +270,20 @@ Key fields:
 
 ## Key Results Summary
 
-### Directional Efficiency Gap
+### Directional Optimization Gap
 
 - **Transformers (scratch)**: $\approx 1.16$ nats excess loss gap at $K=5$
 - **MLPs**: $\approx 0.22$ nats excess loss gap at $K=5$
 
-The Transformer gap is substantially larger, indicating architectural contribution to directional asymmetry.
+The Transformer gap is substantially larger, indicating that **directional friction is intrinsic to causal Transformer training**—persisting even when linguistic priors, token frequencies, and corpus-level temporal asymmetries are removed.
 
 ### Pre-training Effects
 
-Pre-trained initializations show **higher** excess loss than random initialization on synthetic deterministic mappings, suggesting a "plasticity tax" when adapting pre-trained representations to arbitrary mappings.
+Pre-trained initializations shift optimization behavior but do not eliminate the directional gap, suggesting that the asymmetry is not simply a consequence of pre-training data statistics.
 
 ### LoRA Capacity Limits
 
-Low-rank adaptation (LoRA) fails to converge on high-entropy inverse mappings ($B \rightarrow A$ at $K=8$), plateauing early and showing minimal progress toward the entropy floor.
+Low-rank adaptation (LoRA) encounters a sharp capacity wall on high-entropy inverse mappings ($B \to A$ at $K=8$), plateauing early and showing minimal progress toward the entropy floor. This indicates limited expressivity for arbitrary high-entropy mappings under rank constraints.
 
 ## Citation
 
@@ -277,5 +308,7 @@ For questions or issues, please contact: mihirss2@illinois.edu
 
 ## Acknowledgments
 
-This work introduces a minimal, semantics-free tool for isolating and measuring directional training behaviors in sequence models, complementing both empirical findings of directional asymmetry and theoretical claims of architectural reversal invariance.
+This work introduces a minimal, semantics-free tool for isolating and measuring directional training behaviors in sequence models. The benchmark provides a controlled instrument for dissecting directional biases in modern sequence models and motivates deeper mechanistic study of why inversion remains fundamentally harder for Transformers, even when theoretical analyses suggest reversal invariance.
+
+**Code**: [https://github.com/mihirs-0/synass](https://github.com/mihirs-0/synass)
 
